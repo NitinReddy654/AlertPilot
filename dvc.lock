@@ -1,0 +1,71 @@
+schema: '2.0'
+stages:
+  generate_alerts:
+    cmd: python scripts/generate_alerts.py
+    deps:
+    - path: scripts/generate_alerts.py
+      hash: md5
+      md5: 500a066230ad1a1675ccbbf13b96490f
+      size: 2434
+    outs:
+    - path: data/generated/alerts.csv
+      hash: md5
+      md5: 06748d3a0daeb54fdf4c486566c35e6c
+      size: 612379
+  validate_alerts:
+    cmd: python scripts/validate_alerts.py
+    deps:
+    - path: data/generated/alerts.csv
+      hash: md5
+      md5: 06748d3a0daeb54fdf4c486566c35e6c
+      size: 612379
+    - path: scripts/validate_alerts.py
+      hash: md5
+      md5: 5bc8b32bcf40ed15943e278d6e301ce3
+      size: 1360
+    outs:
+    - path: data/validated/alerts.csv
+      hash: md5
+      md5: 06748d3a0daeb54fdf4c486566c35e6c
+      size: 612379
+  train_triage_model:
+    cmd: python scripts/train_triage_model.py
+    deps:
+    - path: data/validated/alerts.csv
+      hash: md5
+      md5: 06748d3a0daeb54fdf4c486566c35e6c
+      size: 612379
+    - path: scripts/train_triage_model.py
+      hash: md5
+      md5: 039c19d8f65297eb917b7d2773672c6d
+      size: 2744
+    outs:
+    - path: artifacts/models/severity_classifier.joblib
+      hash: md5
+      md5: 35112ab45e8588aaf3405720b5e81078
+      size: 7769
+    - path: artifacts/reports/training_metrics.json
+      hash: md5
+      md5: 475f0e1d5d77bd14406693dba608f4cc
+      size: 1129
+  benchmark_api:
+    cmd: python scripts/benchmark_api.py
+    deps:
+    - path: alertpilot
+      hash: md5
+      md5: 6cf0a83f7b936b58e4763b1f07d3d9e7.dir
+      size: 32192
+      nfiles: 9
+    - path: scripts/benchmark_api.py
+      hash: md5
+      md5: 1cc181fca3fecf16987627aa31c8d414
+      size: 3051
+    outs:
+    - path: artifacts/benchmarks/api_benchmark.json
+      hash: md5
+      md5: 9cf6bb3f24915f65b3f73097797f9963
+      size: 191
+    - path: artifacts/benchmarks/api_benchmark.md
+      hash: md5
+      md5: 3de580952dc819420c1c9fcee5bc144a
+      size: 136

@@ -1,0 +1,3 @@
+seed: 42
+synthetic_alert_rows: 5000
+benchmark_requests: 750

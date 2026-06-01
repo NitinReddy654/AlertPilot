@@ -1,0 +1,10 @@
+groups:
+  - name: alertpilot.rules
+    rules:
+      - alert: AlertPilotHighLatency
+        expr: rate(alertpilot_http_request_latency_seconds_sum[5m]) / rate(alertpilot_http_request_latency_seconds_count[5m]) > 0.25
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: AlertPilot API average latency is above 250 ms

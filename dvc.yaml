@@ -1,0 +1,34 @@
+stages:
+  generate_alerts:
+    cmd: python scripts/generate_alerts.py
+    deps:
+      - scripts/generate_alerts.py
+    outs:
+      - data/generated/alerts.csv
+
+  validate_alerts:
+    cmd: python scripts/validate_alerts.py
+    deps:
+      - data/generated/alerts.csv
+      - scripts/validate_alerts.py
+    outs:
+      - data/validated/alerts.csv
+
+  train_triage_model:
+    cmd: python scripts/train_triage_model.py
+    deps:
+      - data/validated/alerts.csv
+      - scripts/train_triage_model.py
+    outs:
+      - artifacts/models/severity_classifier.joblib
+    metrics:
+      - artifacts/reports/training_metrics.json
+
+  benchmark_api:
+    cmd: python scripts/benchmark_api.py
+    deps:
+      - alertpilot
+      - scripts/benchmark_api.py
+    outs:
+      - artifacts/benchmarks/api_benchmark.json
+      - artifacts/benchmarks/api_benchmark.md

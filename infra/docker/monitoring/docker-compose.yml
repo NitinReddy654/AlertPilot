@@ -1,0 +1,47 @@
+services:
+  app:
+    build:
+      context: ../../..
+      dockerfile: infra/docker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      ALERTPILOT_TOKEN_SECRET: local-compose-secret
+      ALERTPILOT_BOOTSTRAP_EMAIL: admin@alertpilot.local
+      ALERTPILOT_BOOTSTRAP_PASSWORD: changeme
+      ALERTPILOT_ENABLE_REDIS: "1"
+      ALERTPILOT_REDIS_URL: redis://redis:6379/0
+    volumes:
+      - alertpilot_data:/app/data
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts.yml:/etc/prometheus/alerts.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    depends_on:
+      - app
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+    depends_on:
+      - prometheus
+
+volumes:
+  alertpilot_data:

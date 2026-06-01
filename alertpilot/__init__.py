@@ -1,0 +1,2 @@
+"""AlertPilot application package."""
+
