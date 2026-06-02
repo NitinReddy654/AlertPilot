@@ -53,19 +53,19 @@ stages:
     deps:
     - path: alertpilot
       hash: md5
-      md5: 6cf0a83f7b936b58e4763b1f07d3d9e7.dir
-      size: 32192
-      nfiles: 9
+      md5: bbce028914069d70928824e9337c2f8f.dir
+      size: 46365
+      nfiles: 15
     - path: scripts/benchmark_api.py
       hash: md5
-      md5: 1cc181fca3fecf16987627aa31c8d414
-      size: 3051
+      md5: eebb1c3f064c3236ebf8f37486deb34e
+      size: 3488
     outs:
     - path: artifacts/benchmarks/api_benchmark.json
       hash: md5
-      md5: 9cf6bb3f24915f65b3f73097797f9963
-      size: 191
+      md5: 4269487e8924a5a68ac3dc5ae2d4804c
+      size: 249
     - path: artifacts/benchmarks/api_benchmark.md
       hash: md5
-      md5: 3de580952dc819420c1c9fcee5bc144a
-      size: 136
+      md5: e088e11fe20ad8732f70d113d5f37316
+      size: 187

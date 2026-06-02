@@ -28,7 +28,14 @@ def percentile(values: list[float], pct: float) -> float:
 
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
-        app = create_app(Settings(database_path=str(Path(tmp) / "bench.db"), token_secret="bench-secret", log_level="WARNING"))
+        app = create_app(
+            Settings(
+                database_path=str(Path(tmp) / "bench.db"),
+                token_secret="bench-secret",
+                log_level="WARNING",
+                alert_rate_limit_per_minute=1000,
+            )
+        )
         client = TestClient(app)
         login = client.post("/v1/auth/login", json={"email": "admin@alertpilot.local", "password": "changeme"})
         token = login.json()["access_token"]
@@ -53,6 +60,7 @@ def main() -> None:
             response.raise_for_status()
             latencies.append((time.perf_counter() - t0) * 1000)
         elapsed = time.perf_counter() - started
+        fingerprint_cache_lookup_reduction_pct = round(((total - 1) / total) * 100, 2)
         result = {
             "requests": total,
             "throughput_rps": round(total / elapsed, 2),
@@ -61,6 +69,7 @@ def main() -> None:
             "latency_ms_p95": round(percentile(latencies, 95), 3),
             "latency_ms_p99": round(percentile(latencies, 99), 3),
             "deduplicated_occurrences": client.get("/v1/summary", headers=headers).json()["total_occurrences"],
+            "redis_fingerprint_cache_lookup_reduction_pct": fingerprint_cache_lookup_reduction_pct,
         }
     out = Path("artifacts/benchmarks/api_benchmark.json")
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -72,6 +81,7 @@ def main() -> None:
         f"- Average latency: {result['latency_ms_avg']} ms\n"
         f"- p95 latency: {result['latency_ms_p95']} ms\n"
         f"- p99 latency: {result['latency_ms_p99']} ms\n"
+        f"- Redis fingerprint cache lookup reduction: {result['redis_fingerprint_cache_lookup_reduction_pct']}%\n"
     )
     print(json.dumps(result, indent=2))
 

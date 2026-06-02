@@ -1,7 +1,7 @@
 services:
   app:
     build:
-      context: ../../..
+      context: .
       dockerfile: infra/docker/Dockerfile
     ports:
       - "8000:8000"
@@ -47,8 +47,8 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./infra/docker/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/docker/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
     command:
       - --config.file=/etc/prometheus/prometheus.yml
     depends_on:

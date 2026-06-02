@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertpilot-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: alertpilot-api
+  template:
+    metadata:
+      labels:
+        app: alertpilot-api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/nitinreddy654/alertpilot:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: alertpilot-config
+          env:
+            - name: ALERTPILOT_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: alertpilot-secrets
+                  key: token-secret
+            - name: ALERTPILOT_BOOTSTRAP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: alertpilot-secrets
+                  key: bootstrap-password
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

@@ -5,7 +5,10 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, sta
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .cache import OptionalRedisCache
+from .cache import RedisCache
+from .events.producer import KafkaIncidentProducer
+from .events.schemas import IncidentCreatedEvent
+from .middleware.rate_limiter import RateLimitMiddleware
 from .config import Settings
 from .database import Database
 from .observability import ALERTS_DEDUPLICATED, INCIDENTS_CREATED, JsonRequestLogger, configure_logging, prometheus_response
@@ -32,7 +35,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     db = Database(settings)
     db.initialize()
-    incidents = IncidentService(db)
+    cache = RedisCache(settings.redis_url, enabled=settings.enable_redis)
+    incidents = IncidentService(db, cache=cache, fingerprint_cache_ttl_seconds=settings.fingerprint_cache_ttl_seconds)
 
     app = FastAPI(
         title="AlertPilot Incident Triage API",
@@ -42,7 +46,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.db = db
     app.state.incidents = incidents
-    app.state.cache = OptionalRedisCache(settings.enable_redis, settings.redis_url)
+    app.state.cache = cache
+    app.state.incident_producer = KafkaIncidentProducer(
+        settings.kafka_bootstrap_servers,
+        settings.kafka_topic,
+        enabled=settings.enable_kafka,
+    )
+    app.add_middleware(
+        RateLimitMiddleware,
+        redis_url=settings.redis_url,
+        limit=settings.alert_rate_limit_per_minute,
+        window_seconds=settings.alert_rate_limit_window_seconds,
+        enabled=settings.enable_redis,
+    )
     app.add_middleware(JsonRequestLogger)
 
     static_dir = Path(__file__).resolve().parent.parent / "static"
@@ -105,7 +121,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return request.app.state.incidents.upsert_service(payload)
 
     @app.post("/v1/alerts", response_model=IncidentOut, status_code=status.HTTP_201_CREATED)
-    def ingest_alert(
+    async def ingest_alert(
         request: Request,
         payload: AlertIn,
         user: UserContext = Depends(current_user),
@@ -114,8 +130,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         before = request.app.state.incidents.summary().total_occurrences
         incident = request.app.state.incidents.ingest(payload, user.email)
         after_summary = request.app.state.incidents.summary()
-        if after_summary.total_occurrences == before + 1 and incident.occurrences == 1:
+        created_new_incident = after_summary.total_occurrences == before + 1 and incident.occurrences == 1
+        if created_new_incident:
             INCIDENTS_CREATED.inc()
+            if incident.severity in {"high", "critical"}:
+                await request.app.state.incident_producer.publish_incident_created(
+                    IncidentCreatedEvent.from_incident(incident)
+                )
         else:
             ALERTS_DEDUPLICATED.inc()
         return incident
@@ -167,6 +188,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/v1/summary", response_model=SummaryResponse)
     def summary(request: Request, _: UserContext = Depends(current_user)):
         return request.app.state.incidents.summary()
+
+    async def close_event_producer() -> None:
+        await app.state.incident_producer.close()
+
+    app.add_event_handler("shutdown", close_event_producer)
 
     @app.get("/metrics")
     def metrics():

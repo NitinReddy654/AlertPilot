@@ -15,8 +15,15 @@ class Settings:
     bootstrap_email: str = "admin@alertpilot.local"
     bootstrap_password: str = "changeme"
     log_level: str = "INFO"
-    enable_redis: bool = False
+    enable_redis: bool = True
     redis_url: str = "redis://localhost:6379/0"
+    alert_rate_limit_per_minute: int = 100
+    alert_rate_limit_window_seconds: int = 60
+    fingerprint_cache_ttl_seconds: int = 60
+    enable_kafka: bool = False
+    kafka_bootstrap_servers: str = "localhost:9092"
+    kafka_topic: str = "incident.created"
+    kafka_consumer_group: str = "alertpilot-notifications"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -28,8 +35,15 @@ class Settings:
             bootstrap_email=os.getenv("ALERTPILOT_BOOTSTRAP_EMAIL", "admin@alertpilot.local"),
             bootstrap_password=os.getenv("ALERTPILOT_BOOTSTRAP_PASSWORD", "changeme"),
             log_level=os.getenv("ALERTPILOT_LOG_LEVEL", "INFO"),
-            enable_redis=os.getenv("ALERTPILOT_ENABLE_REDIS", "0") == "1",
+            enable_redis=os.getenv("ALERTPILOT_ENABLE_REDIS", "1") == "1",
             redis_url=os.getenv("ALERTPILOT_REDIS_URL", "redis://localhost:6379/0"),
+            alert_rate_limit_per_minute=int(os.getenv("ALERTPILOT_RATE_LIMIT_PER_MINUTE", "100")),
+            alert_rate_limit_window_seconds=int(os.getenv("ALERTPILOT_RATE_LIMIT_WINDOW_SECONDS", "60")),
+            fingerprint_cache_ttl_seconds=int(os.getenv("ALERTPILOT_FINGERPRINT_CACHE_TTL_SECONDS", "60")),
+            enable_kafka=os.getenv("ALERTPILOT_ENABLE_KAFKA", "0") == "1",
+            kafka_bootstrap_servers=os.getenv("ALERTPILOT_KAFKA_BOOTSTRAP_SERVERS", "localhost:9092"),
+            kafka_topic=os.getenv("ALERTPILOT_KAFKA_TOPIC", "incident.created"),
+            kafka_consumer_group=os.getenv("ALERTPILOT_KAFKA_CONSUMER_GROUP", "alertpilot-notifications"),
         )
 
     def ensure_runtime_dirs(self) -> None:

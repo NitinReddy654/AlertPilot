@@ -6,6 +6,7 @@ import re
 import uuid
 from typing import Any
 
+from .cache import RedisCache
 from .database import Database, utc_now
 from .schemas import AlertIn, IncidentOut, ServiceIn, ServiceOut, SummaryResponse
 
@@ -58,8 +59,10 @@ def summarize_alert(alert: AlertIn, severity: str, service: dict[str, Any]) -> s
 
 
 class IncidentService:
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, cache: RedisCache | None = None, fingerprint_cache_ttl_seconds: int = 60):
         self.db = db
+        self.cache = cache
+        self.fingerprint_cache_ttl_seconds = fingerprint_cache_ttl_seconds
 
     def upsert_service(self, item: ServiceIn) -> ServiceOut:
         now = utc_now()
@@ -89,15 +92,29 @@ class IncidentService:
 
         fingerprint = fingerprint_alert(alert)
         severity = score_alert(alert, service)
-        existing = self.db.query_one(
-            """
-            SELECT * FROM incidents
-            WHERE fingerprint = ? AND status IN ('open', 'acknowledged')
-            ORDER BY last_seen DESC
-            LIMIT 1
-            """,
-            (fingerprint,),
-        )
+        existing = None
+        cached_incident_id = self.cache.get_fingerprint(fingerprint) if self.cache else None
+        if cached_incident_id:
+            existing = self.db.query_one(
+                """
+                SELECT * FROM incidents
+                WHERE id = ? AND status IN ('open', 'acknowledged')
+                LIMIT 1
+                """,
+                (cached_incident_id,),
+            )
+        if existing is None:
+            existing = self.db.query_one(
+                """
+                SELECT * FROM incidents
+                WHERE fingerprint = ? AND status IN ('open', 'acknowledged')
+                ORDER BY last_seen DESC
+                LIMIT 1
+                """,
+                (fingerprint,),
+            )
+            if existing and self.cache:
+                self.cache.set_fingerprint(fingerprint, existing["id"], self.fingerprint_cache_ttl_seconds)
         payload = alert.model_dump()
         now = utc_now()
 
@@ -116,6 +133,8 @@ class IncidentService:
             )
             self._append_event(existing["id"], "deduplicated_alert", payload)
             self.db.audit(actor, "alert.deduplicated", existing["id"], {"fingerprint": fingerprint})
+            if self.cache:
+                self.cache.set_fingerprint(fingerprint, existing["id"], self.fingerprint_cache_ttl_seconds)
             updated = self.get_incident(existing["id"])
             return IncidentOut(**{k: updated[k] for k in IncidentOut.model_fields})
 
@@ -147,6 +166,8 @@ class IncidentService:
         )
         self._append_event(incident_id, "alert_created_incident", payload)
         self.db.audit(actor, "incident.created", incident_id, {"severity": severity})
+        if self.cache:
+            self.cache.set_fingerprint(fingerprint, incident_id, self.fingerprint_cache_ttl_seconds)
         return IncidentOut(**self.get_incident(incident_id))
 
     def list_incidents(self, status: str | None = None, limit: int = 50) -> list[IncidentOut]:
